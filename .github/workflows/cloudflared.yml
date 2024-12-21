@@ -22,7 +22,6 @@ jobs:
     - name: Create Tunnel
       run: |
         Write-Host "Starting Cloudflare Tunnel..."
-        Write-Host "Using named tunnel configuration..."
         Write-Host "============================================"
         
         # 验证令牌
@@ -31,23 +30,8 @@ jobs:
             exit 1
         }
         
-        # 首先尝试登录
-        .\cloudflared.exe tunnel login
-        
-        # 运行隧道并设置超时
-        $job = Start-Job -ScriptBlock {
-            .\cloudflared.exe tunnel --protocol auto --no-autoupdate run
-        }
-        
-        # 等待隧道启动
-        Start-Sleep -Seconds 10
-        
-        # 检查隧道状态
-        $tunnelStatus = .\cloudflared.exe tunnel info
-        Write-Host "Tunnel Status: $tunnelStatus"
-        
-        # 保持隧道运行
-        Wait-Job $job
-        Receive-Job $job
+        # 直接运行隧道
+        Write-Host "Running tunnel with token..."
+        .\cloudflared.exe tunnel run --token "$env:TUNNEL_TOKEN"
       env:
         TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
