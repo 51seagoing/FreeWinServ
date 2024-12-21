@@ -5,91 +5,49 @@ on:
     inputs:
       type:
         description: |
-          选择远程桌面类型:
-
-          Windows 远程桌面:
-          [1] Windows + Cloudflared
-              - 国外推荐
-              - 稳定性好
+          ▼ Windows 远程桌面:
+          win-cf  → Cloudflared (国外推荐)
+          win-ng  → Ngrok (国内推荐)
           
-          [2] Windows + Ngrok
-              - 国内推荐
-              - 配置简单
-          
-          Linux 远程桌面:
-          [3] Linux + XFCE
-              - 轻量快速
-              - 推荐使用
-          
-          [4] Linux + MATE
-              - Ubuntu 原生体验
-              - 功能完整
-          
-          [5] Linux + LXDE
-              - 超轻量级
-              - 性能最佳
+          ▼ Linux 远程桌面:
+          linux-xfce → XFCE (轻量快速)
+          linux-mate → MATE (完整体验)
+          linux-lxde → LXDE (超轻量级)
         required: true
-        default: '1'
+        default: 'win-cf'
         type: choice
-        options: ['1', '2', '3', '4', '5']
+        options:
+          - 'win-cf'
+          - 'win-ng'
+          - 'linux-xfce'
+          - 'linux-mate'
+          - 'linux-lxde'
       os_type:
         description: |
           选择 Ubuntu 版本:
-
-          推荐版本:
-          [1] Ubuntu Latest
-              - 最新版本
-              - 推荐使用
-          
-          其他版本:
-          [2] Ubuntu 22.04 LTS
-              - 长期支持版
-              - 稳定可靠
-          
-          [3] Ubuntu 20.04 LTS
-              - 稳定版本
-              - 兼容性好
         required: false
-        default: '1'
+        default: 'Ubuntu Latest (推荐)'
         type: choice
-        options: ['1', '2', '3']
+        options:
+          - 'Ubuntu Latest (推荐)'
+          - 'Ubuntu 22.04 LTS'
+          - 'Ubuntu 20.04 LTS'
       browser:
         description: |
           选择浏览器:
-
-          推荐选择:
-          [1] Firefox
-              - 最稳定
-              - 推荐使用
-          
-          其他选择:
-          [2] Chrome
-              - 功能完整
-              - 需要下载
-          
-          [3] Chromium
-              - 轻量快速
-              - 开源版本
         required: false
-        default: '1'
+        default: 'Firefox (推荐)'
         type: choice
-        options: ['1', '2', '3']
+        options:
+          - 'Firefox (推荐)'
+          - 'Chrome'
+          - 'Chromium'
       password:
-        description: |
-          设置远程桌面密码:
-          
-          [默认] P@ssw0rd!
-          [建议] 使用自定义强密码
-          [注意] 请妥善保管密码
+        description: '远程桌面密码 (默认: P@ssw0rd!)'
         required: false
         default: 'P@ssw0rd!'
       timeout:
-        description: |
-          设置运行时间:
-          
-          [范围] 60-360 分钟
-          [默认] 360 分钟
-          [注意] 超时后自动停止
+        description: '运行时间 (60-360分钟，默认360)'
         required: true
         default: '360'
         type: number
@@ -102,18 +60,43 @@ jobs:
     steps:
       - id: config
         run: |
+          # 定义显示名称映射
+          declare -A display_names=(
+            ["win-cf"]="Windows + Cloudflared (国外)"
+            ["win-ng"]="Windows + Ngrok (国内)"
+            ["linux-xfce"]="Linux + XFCE (推荐)"
+            ["linux-mate"]="Linux + MATE"
+            ["linux-lxde"]="Linux + LXDE (轻量)"
+          )
+          
           # 配置转换
           case "${{ github.event.inputs.type }}" in
-            "1"|"2") 
-              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"${{ github.event.inputs.type == '1' && 'cloudflared' || 'ngrok' }}\"}"
+            "win-cf") 
+              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"cloudflared\"}"
+              echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
               ;;
-            "3"|"4"|"5")
+            "win-ng") 
+              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"ngrok\"}"
+              echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
+              ;;
+            "linux-xfce"|"linux-mate"|"linux-lxde")
+              desktop="${{ github.event.inputs.type }}"
+              desktop=${desktop#linux-}  # 移除 'linux-' 前缀
               echo "::set-output name=config::{
                 \"type\":\"linux\",
-                \"desktop\":\"${{ github.event.inputs.type == '3' && 'xfce' || github.event.inputs.type == '4' && 'mate' || 'lxde' }}\",
-                \"os\":\"${{ github.event.inputs.os_type == '1' && 'ubuntu-latest' || github.event.inputs.os_type == '2' && 'ubuntu-22.04' || 'ubuntu-20.04' }}\",
-                \"browser\":\"${{ github.event.inputs.browser == '1' && 'firefox' || github.event.inputs.browser == '2' && 'chrome' || 'chromium' }}\"
+                \"desktop\":\"${desktop}\",
+                \"os\":\"${{ 
+                  github.event.inputs.os_type == 'ubuntu-latest' && 'ubuntu-latest' || 
+                  github.event.inputs.os_type == 'ubuntu-22.04' && 'ubuntu-22.04' || 
+                  'ubuntu-20.04' 
+                }}\",
+                \"browser\":\"${{ 
+                  github.event.inputs.browser == 'firefox' && 'firefox' || 
+                  github.event.inputs.browser == 'chrome' && 'chrome' || 
+                  'chromium' 
+                }}\"
               }"
+              echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
               ;;
           esac
 
