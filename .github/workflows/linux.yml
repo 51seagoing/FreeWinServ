@@ -33,12 +33,13 @@ on:
           运行时间(分钟)
           范围: 60-360
         required: true
-        type: number
+        type: string
+        default: '360'
 
 jobs:
   rdp:
     runs-on: ${{ inputs.os }}
-    timeout-minutes: ${{ inputs.timeout }}
+    timeout-minutes: ${{ fromJson(inputs.timeout) }}
     steps:
       - uses: actions/checkout@v2
       

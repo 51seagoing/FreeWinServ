@@ -50,7 +50,7 @@ on:
         description: '运行时间 (60-360分钟，默认360)'
         required: true
         default: '360'
-        type: number
+        type: string
 
 jobs:
   setup:
