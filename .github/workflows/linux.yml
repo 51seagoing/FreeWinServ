@@ -3,45 +3,6 @@ name: Linux RDP
 on:
   workflow_dispatch:
     inputs:
-      os_type:
-        description: |
-          选择 Ubuntu 版本:
-          - Latest: 最新版本 (推荐)
-          - 22.04: 长期支持版
-          - 20.04: 稳定版本
-        required: true
-        type: choice
-        options:
-          - 'ubuntu-latest'
-          - 'ubuntu-22.04'
-          - 'ubuntu-20.04'
-        default: 'ubuntu-latest'
-      desktop:
-        description: |
-          选择桌面环境:
-          - xfce: 轻量快速 (推荐)
-          - mate: 完整体验
-          - lxde: 超轻量级
-        required: true
-        type: choice
-        options:
-          - 'xfce'
-          - 'mate'
-          - 'lxde'
-        default: 'xfce'
-      browser:
-        description: |
-          选择浏览器:
-          - firefox: 开源浏览器 (推荐)
-          - chrome: 谷歌浏览器
-          - chromium: 开源Chrome
-        required: true
-        type: choice
-        options:
-          - 'firefox'
-          - 'chrome'
-          - 'chromium'
-        default: 'firefox'
       password:
         description: '远程桌面密码 (默认: P@ssw0rd!)'
         required: false
@@ -53,161 +14,34 @@ on:
         type: string
         default: '360'
 
-# 权限配置
-permissions:
-  contents: read
-
-# 并发控制
-concurrency:
-  group: rdp-${{ github.ref }}-${{ github.actor }}
-  cancel-in-progress: true
-
 jobs:
-  # 输入验证
-  validate:
-    runs-on: ubuntu-latest
-    outputs:
-      timeout: ${{ steps.validate.outputs.timeout }}
-    steps:
-      - id: validate
-        name: 验证输入
-        run: |
-          # 验证超时时间
-          TIMEOUT=${{ inputs.timeout }}
-          if [ $TIMEOUT -lt 60 ] || [ $TIMEOUT -gt 360 ]; then
-            echo "错误：超时时间必须在 60-360 分钟之间"
-            exit 1
-          fi
-          echo "timeout=$TIMEOUT" >> $GITHUB_OUTPUT
-          
-          # 验证密码长度
-          if [ ${#PASSWORD} -lt 8 ]; then
-            echo "错误：密码长度必须大于 8 位"
-            exit 1
-          fi
-        env:
-          PASSWORD: ${{ inputs.password }}
-  
-  # 主任务
   rdp:
-    needs: validate
-    runs-on: ${{ inputs.os_type }}
-    timeout-minutes: ${{ fromJson(needs.validate.outputs.timeout) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJson(inputs.timeout) }}
     
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: 系统信息
-        shell: bash
+      - name: 检查 Docker
         run: |
-          echo "==== 系统信息 ===="
-          echo "发行版本: $(lsb_release -d)"
-          echo "内核版本: $(uname -r)"
-          echo "CPU 信息: $(lscpu | grep 'Model name' | cut -f 2 -d ":")"
-          echo "内存信息: $(free -h | grep Mem | awk '{print $2}')"
-          echo "当前时间: $(date)"
+          docker --version
+          docker info
       
-      - name: 配置桌面环境
-        shell: bash
+      - name: 运行 Linux 桌面容器
         run: |
-          # 更新系统
-          sudo apt-get update
-          sudo apt-get upgrade -y
+          docker run -d \
+            --name linux-rdp \
+            -p 3390:3389 \
+            -e ROOT_PASSWORD=${{ inputs.password }} \
+            -e USER=runner \
+            -e PASSWORD=${{ inputs.password }} \
+            danielguerra/ubuntu-xrdp
           
-          # 安装通用工具
-          sudo apt-get install -y wget curl git nano net-tools
+          # 等待容器启动
+          sleep 10
           
-          # 安装桌面环境
-          echo "正在安装 ${{ inputs.desktop }} 桌面环境..."
-          case "${{ inputs.desktop }}" in
-            "xfce")
-              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies
-              echo xfce4-session > ~/.xsession
-              ;;
-            "mate")
-              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mate-desktop-environment-core
-              echo mate-session > ~/.xsession
-              ;;
-            "lxde")
-              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lxde-core
-              echo lxde-session > ~/.xsession
-              ;;
-          esac
-          
-          # 安装浏览器
-          echo "正在安装 ${{ inputs.browser }} 浏览器..."
-          case "${{ inputs.browser }}" in
-            "firefox")
-              sudo apt-get install -y firefox
-              ;;
-            "chrome")
-              wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-              sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
-              ;;
-            "chromium")
-              sudo apt-get install -y chromium-browser
-              ;;
-          esac
-      
-      - name: 配置远程桌面
-        shell: bash
-        run: |
-          # 安装 XRDP
-          sudo apt-get install -y xrdp
-          
-          # 创建必要的目录并设置权限
-          sudo mkdir -p /run/xrdp
-          sudo chmod 755 /run/xrdp
-          sudo chown xrdp:xrdp /run/xrdp
-          
-          # 备份配置
-          sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
-          
-          # 优化 XRDP 配置
-          sudo sed -i 's/3389/3390/g' /etc/xrdp/xrdp.ini
-          sudo sed -i 's/max_bpp=32/max_bpp=128/g' /etc/xrdp/xrdp.ini
-          sudo sed -i 's/xserverbpp=24/xserverbpp=30/g' /etc/xrdp/xrdp.ini
-          
-          # 配置用户和权限
-          sudo useradd -m -s /bin/bash runner || true
-          echo "runner:${{ inputs.password }}" | sudo chpasswd
-          sudo usermod -aG sudo,xrdp runner
-          
-          # 设置家目录权限
-          sudo chown -R runner:runner /home/runner
-          sudo chmod 755 /home/runner
-          
-          # 配置 XRDP 会话
-          echo "xfce4-session" > /home/runner/.xsession
-          sudo chown runner:runner /home/runner/.xsession
-          sudo chmod 644 /home/runner/.xsession
-          
-          # 配置 XRDP 服务
-          sudo systemctl enable xrdp
-          sudo systemctl restart xrdp
-          
-          # 等待服务完全启动
-          sleep 5
-          
-          # 检查服务状态
-          echo "==== XRDP 服务状态 ===="
-          sudo systemctl status xrdp --no-pager
-          
-          # 检查日志
-          echo "==== XRDP 日志 ===="
-          sudo tail -n 20 /var/log/xrdp.log || true
-          
-          # 检查端口
-          echo "==== 端口状态 ===="
-          sudo netstat -tuln | grep 3390 || true
-          sudo lsof -i :3390 || true
-          
-          # 检查防火墙
-          echo "==== 防火墙状态 ===="
-          sudo ufw status || true
+          # 显示容器日志
+          docker logs linux-rdp
       
       - name: 配置 Cloudflared 隧道
-        shell: bash
         run: |
           # 下载和安装 Cloudflared
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -221,40 +55,14 @@ jobs:
             exit 1
           fi
           
-          # 显示调试信息
-          echo "==== 网络状态 ===="
-          ip addr show
+          # 显示容器和端口状态
+          echo "==== 容器状态 ===="
+          docker ps
           
           echo "==== 端口状态 ===="
-          sudo netstat -tuln
+          sudo netstat -tuln | grep 3390
           
-          # 启动隧道并显示详细日志
-          echo "正在启动隧道..."
+          # 启动隧道
           cloudflared tunnel --loglevel debug run --token "$TUNNEL_TOKEN"
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
-      
-      - name: 配置 SSH
-        shell: bash
-        run: |
-          # 安装 SSH 服务器
-          sudo apt-get install -y openssh-server
-          
-          # 配置 SSH
-          sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
-          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-          
-          # 设置 SSH 密码
-          echo "runner:${{ inputs.password }}" | sudo chpasswd
-          
-          # 启动 SSH 服务
-          sudo service ssh restart
-          
-          # 显示 SSH 状态
-          echo "==== SSH 服务状态 ===="
-          sudo service ssh status
-          
-          # 显示 SSH 端口
-          echo "==== SSH 端口 ===="
-          sudo netstat -tuln | grep 22
