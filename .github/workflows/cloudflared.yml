@@ -31,8 +31,13 @@ jobs:
         $Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
         Enable-LocalUser -Name "runneradmin"
-        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
-        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+        
+        # 添加到 Remote Desktop Users 组（使用错误处理）
+        try {
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction Stop
+        } catch {
+            Write-Host "Note: User already in Remote Desktop Users group"
+        }
         
         # Windows 11 RDP 安全设置
         Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "SecurityLayer" -Value 2
@@ -51,6 +56,10 @@ jobs:
         # 显示配置信息
         Write-Host "==== 用户信息 ===="
         Get-LocalUser runneradmin | Select-Object Name,Enabled,LastLogon | Format-List
+        
+        Write-Host "==== 组成员身份 ===="
+        Get-LocalGroupMember -Group "Administrators" | Where-Object {$_.Name -like "*runneradmin*"} | Format-List
+        Get-LocalGroupMember -Group "Remote Desktop Users" | Where-Object {$_.Name -like "*runneradmin*"} | Format-List
         
         Write-Host "==== RDP 配置 ===="
         Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' | Select-Object UserAuthentication,SecurityLayer,MinEncryptionLevel
