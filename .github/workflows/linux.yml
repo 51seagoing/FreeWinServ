@@ -50,10 +50,8 @@ on:
       timeout:
         description: '运行时间 (60-360分钟，默认360)'
         required: true
-        type: number
-        minimum: 60
-        maximum: 360
-        default: 360
+        type: string
+        default: '360'
 
 # 权限配置
 permissions:
@@ -68,14 +66,19 @@ jobs:
   # 输入验证
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      timeout: ${{ steps.validate.outputs.timeout }}
     steps:
-      - name: 验证输入
+      - id: validate
+        name: 验证输入
         run: |
           # 验证超时时间
-          if [ ${{ inputs.timeout }} -lt 60 ] || [ ${{ inputs.timeout }} -gt 360 ]; then
+          TIMEOUT=${{ inputs.timeout }}
+          if [ $TIMEOUT -lt 60 ] || [ $TIMEOUT -gt 360 ]; then
             echo "错误：超时时间必须在 60-360 分钟之间"
             exit 1
           fi
+          echo "timeout=$TIMEOUT" >> $GITHUB_OUTPUT
           
           # 验证密码长度
           if [ ${#PASSWORD} -lt 8 ]; then
@@ -89,7 +92,7 @@ jobs:
   rdp:
     needs: validate
     runs-on: ${{ inputs.os_type }}
-    timeout-minutes: ${{ inputs.timeout }}
+    timeout-minutes: ${{ fromJson(needs.validate.outputs.timeout) }}
     
     steps:
       - uses: actions/checkout@v4
