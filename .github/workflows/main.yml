@@ -6,15 +6,28 @@ on:
       type:
         description: |
           选择远程桌面类型:
-          
+
           Windows 远程桌面:
-            1 = Windows + Cloudflared (国外推荐)
-            2 = Windows + Ngrok (国内推荐)
+          [1] Windows + Cloudflared
+              - 国外推荐
+              - 稳定性好
+          
+          [2] Windows + Ngrok
+              - 国内推荐
+              - 配置简单
           
           Linux 远程桌面:
-            3 = Linux + XFCE (轻量快速，推荐)
-            4 = Linux + MATE (Ubuntu 原生体验)
-            5 = Linux + LXDE (超轻量，性能最佳)
+          [3] Linux + XFCE
+              - 轻量快速
+              - 推荐使用
+          
+          [4] Linux + MATE
+              - Ubuntu 原生体验
+              - 功能完整
+          
+          [5] Linux + LXDE
+              - 超轻量级
+              - 性能最佳
         required: true
         default: '1'
         type: choice
@@ -22,13 +35,20 @@ on:
       os_type:
         description: |
           选择 Ubuntu 版本:
+
+          推荐版本:
+          [1] Ubuntu Latest
+              - 最新版本
+              - 推荐使用
           
-          推荐选项:
-            1 = Ubuntu Latest (最新版本，推荐)
+          其他版本:
+          [2] Ubuntu 22.04 LTS
+              - 长期支持版
+              - 稳定可靠
           
-          其他选项:
-            2 = Ubuntu 22.04 LTS (长期支持版)
-            3 = Ubuntu 20.04 LTS (稳定版本)
+          [3] Ubuntu 20.04 LTS
+              - 稳定版本
+              - 兼容性好
         required: false
         default: '1'
         type: choice
@@ -36,13 +56,20 @@ on:
       browser:
         description: |
           选择浏览器:
+
+          推荐选择:
+          [1] Firefox
+              - 最稳定
+              - 推荐使用
           
-          推荐选项:
-            1 = Firefox (最稳定，推荐)
+          其他选择:
+          [2] Chrome
+              - 功能完整
+              - 需要下载
           
-          其他选项:
-            2 = Chrome (功能完整)
-            3 = Chromium (轻量快速)
+          [3] Chromium
+              - 轻量快速
+              - 开源版本
         required: false
         default: '1'
         type: choice
@@ -50,16 +77,19 @@ on:
       password:
         description: |
           设置远程桌面密码:
-          - 默认: P@ssw0rd!
-          - 建议: 使用自定义强密码
+          
+          [默认] P@ssw0rd!
+          [建议] 使用自定义强密码
+          [注意] 请妥善保管密码
         required: false
         default: 'P@ssw0rd!'
       timeout:
         description: |
           设置运行时间:
-          - 范围: 60-360 分钟
-          - 默认: 360 分钟
-          - 注意: 超时后会自动停止
+          
+          [范围] 60-360 分钟
+          [默认] 360 分钟
+          [注意] 超时后自动停止
         required: true
         default: '360'
         type: number
