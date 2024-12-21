@@ -155,6 +155,11 @@ jobs:
           # 安装 XRDP
           sudo apt-get install -y xrdp
           
+          # 创建必要的目录并设置权限
+          sudo mkdir -p /run/xrdp
+          sudo chmod 755 /run/xrdp
+          sudo chown xrdp:xrdp /run/xrdp
+          
           # 备份配置
           sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
           
@@ -163,25 +168,43 @@ jobs:
           sudo sed -i 's/max_bpp=32/max_bpp=128/g' /etc/xrdp/xrdp.ini
           sudo sed -i 's/xserverbpp=24/xserverbpp=30/g' /etc/xrdp/xrdp.ini
           
-          # 配置用户
+          # 配置用户和权限
           sudo useradd -m -s /bin/bash runner || true
           echo "runner:${{ inputs.password }}" | sudo chpasswd
-          sudo usermod -aG sudo runner
+          sudo usermod -aG sudo,xrdp runner
           
-          # 设置权限
+          # 设置家目录权限
           sudo chown -R runner:runner /home/runner
+          sudo chmod 755 /home/runner
           
-          # 启动服务
+          # 配置 XRDP 会话
+          echo "xfce4-session" > /home/runner/.xsession
+          sudo chown runner:runner /home/runner/.xsession
+          sudo chmod 644 /home/runner/.xsession
+          
+          # 配置 XRDP 服务
           sudo systemctl enable xrdp
           sudo systemctl restart xrdp
+          
+          # 等待服务完全启动
+          sleep 5
           
           # 检查服务状态
           echo "==== XRDP 服务状态 ===="
           sudo systemctl status xrdp --no-pager
           
+          # 检查日志
+          echo "==== XRDP 日志 ===="
+          sudo tail -n 20 /var/log/xrdp.log || true
+          
           # 检查端口
           echo "==== 端口状态 ===="
-          sudo netstat -tuln | grep 3390
+          sudo netstat -tuln | grep 3390 || true
+          sudo lsof -i :3390 || true
+          
+          # 检查防火墙
+          echo "==== 防火墙状态 ===="
+          sudo ufw status || true
       
       - name: 配置 Cloudflared 隧道
         shell: bash
