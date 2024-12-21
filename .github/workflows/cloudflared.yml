@@ -14,10 +14,28 @@ jobs:
     
     - name: Enable RDP
       run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        # 启用 RDP 服务
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        
+        # 启用 Network Level Authentication
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        
+        # 启用防火墙规则
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # 启动 Remote Desktop 服务
+        Start-Service TermService
+        Set-Service TermService -StartupType Automatic
+        
+        # 设置用户密码
         Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+        
+        # 验证 RDP 服务状态
+        $rdpService = Get-Service TermService
+        Write-Host "RDP Service Status: $($rdpService.Status)"
+        
+        # 等待服务完全启动
+        Start-Sleep -Seconds 5
     
     - name: Create Tunnel
       run: |
@@ -29,6 +47,10 @@ jobs:
             Write-Error "Tunnel token is not set!"
             exit 1
         }
+        
+        # 确保 RDP 端口可访问
+        $testPort = Test-NetConnection -ComputerName localhost -Port 3389
+        Write-Host "RDP Port Status: $($testPort.TcpTestSucceeded)"
         
         # 直接运行隧道
         Write-Host "Running tunnel with token..."
