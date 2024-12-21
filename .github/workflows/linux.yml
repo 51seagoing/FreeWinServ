@@ -1,0 +1,40 @@
+name: Linux RDP
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      desktop:
+        required: true
+        type: string
+      browser:
+        required: true
+        type: string
+      password:
+        required: false
+        type: string
+        default: 'P@ssw0rd!'
+      timeout:
+        required: true
+        type: number
+
+jobs:
+  rdp:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: ${{ inputs.timeout }}
+    steps:
+      - uses: actions/checkout@v2
+      
+      # 复用的 Linux 配置步骤
+      - name: Setup Desktop
+        uses: ./.github/actions/linux-desktop
+        with:
+          desktop: ${{ inputs.desktop }}
+          browser: ${{ inputs.browser }}
+          password: ${{ inputs.password }}
+      
+      # 复用的隧道配置
+      - name: Setup Tunnel
+        uses: ./.github/actions/cloudflared-tunnel 

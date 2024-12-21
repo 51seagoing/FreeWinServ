@@ -8,30 +8,29 @@ on:
           选择远程桌面类型:
           1 = Windows + Cloudflared (国外推荐)
           2 = Windows + Ngrok (国内推荐)
-          3 = Linux + XFCE (轻量桌面)
-          4 = Linux + MATE (传统桌面)
-          5 = Linux + LXDE (超轻量桌面)
+          3 = Linux + XFCE (轻量快速，推荐)
+          4 = Linux + MATE (Ubuntu 原生体验)
+          5 = Linux + LXDE (超轻量，性能最佳)
         required: true
         default: '1'
         type: choice
         options: ['1', '2', '3', '4', '5']
       os_type:
         description: |
-          Linux系统类型 (仅Linux选项3/4/5有效):
-          1 = Ubuntu (推荐)
-          2 = Debian
-          3 = Fedora
-          4 = CentOS
+          Ubuntu 版本选择 (仅Linux选项有效):
+          1 = Ubuntu Latest (推荐)
+          2 = Ubuntu 22.04
+          3 = Ubuntu 20.04
         required: false
         default: '1'
         type: choice
-        options: ['1', '2', '3', '4']
+        options: ['1', '2', '3']
       browser:
         description: |
           浏览器选择 (仅Linux选项有效):
-          1 = Firefox (推荐)
-          2 = Chrome
-          3 = Chromium
+          1 = Firefox (推荐，最稳定)
+          2 = Chrome (需要额外下载)
+          3 = Chromium (轻量级选择)
         required: false
         default: '1'
         type: choice
@@ -47,44 +46,46 @@ on:
         type: number
 
 jobs:
-  entry:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.config.outputs.config }}
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Set Environment
-        id: set-env
+      - id: config
         run: |
-          # 转换RDP类型
+          # 配置转换
           case "${{ github.event.inputs.type }}" in
-            "1") 
-              WORKFLOW="cloudflared.yml"
+            "1"|"2") 
+              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"${{ github.event.inputs.type == '1' && 'cloudflared' || 'ngrok' }}\"}"
               ;;
-            "2") 
-              WORKFLOW="ngrok.yml"
-              ;;
-            "3"|"4"|"5") 
-              WORKFLOW="linux-rdp.yml"
-              case "${{ github.event.inputs.type }}" in
-                "3") DESKTOP_ENV="xfce" ;;
-                "4") DESKTOP_ENV="mate" ;;
-                "5") DESKTOP_ENV="lxde" ;;
-              esac
+            "3"|"4"|"5")
+              echo "::set-output name=config::{
+                \"type\":\"linux\",
+                \"desktop\":\"${{ github.event.inputs.type == '3' && 'xfce' || github.event.inputs.type == '4' && 'mate' || 'lxde' }}\",
+                \"os\":\"${{ github.event.inputs.os_type == '1' && 'ubuntu-latest' || github.event.inputs.os_type == '2' && 'ubuntu-22.04' || 'ubuntu-20.04' }}\",
+                \"browser\":\"${{ github.event.inputs.browser == '1' && 'firefox' || github.event.inputs.browser == '2' && 'chrome' || 'chromium' }}\"
+              }"
               ;;
           esac
-          
-          echo "::set-output name=workflow::$WORKFLOW"
-          echo "::set-output name=desktop_env::$DESKTOP_ENV"
 
-      - name: Trigger Selected Workflow
-        uses: benc-uk/workflow-dispatch@v1
-        with:
-          workflow: ${{ steps.set-env.outputs.workflow }}
-          inputs: |
-            {
-              "os_type": "${{ github.event.inputs.os_type }}",
-              "desktop_env": "${{ steps.set-env.outputs.desktop_env }}",
-              "browser": "${{ github.event.inputs.browser }}",
-              "password": "${{ github.event.inputs.password }}",
-              "timeout": "${{ github.event.inputs.timeout }}"
-            }
+  windows:
+    needs: setup
+    if: fromJson(needs.setup.outputs.config).type == 'windows'
+    uses: ./.github/workflows/windows.yml
+    with:
+      tunnel: ${{ fromJson(needs.setup.outputs.config).tunnel }}
+      password: ${{ github.event.inputs.password }}
+      timeout: ${{ github.event.inputs.timeout }}
+    secrets: inherit
+
+  linux:
+    needs: setup
+    if: fromJson(needs.setup.outputs.config).type == 'linux'
+    uses: ./.github/workflows/linux.yml
+    with:
+      os: ${{ fromJson(needs.setup.outputs.config).os }}
+      desktop: ${{ fromJson(needs.setup.outputs.config).desktop }}
+      browser: ${{ fromJson(needs.setup.outputs.config).browser }}
+      password: ${{ github.event.inputs.password }}
+      timeout: ${{ github.event.inputs.timeout }}
+    secrets: inherit

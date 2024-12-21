@@ -1,0 +1,33 @@
+name: 'Setup Cloudflared Tunnel'
+description: '配置和启动 Cloudflared 隧道'
+
+runs:
+  using: "composite"
+  steps:
+    - name: 下载 Cloudflared
+      shell: bash
+      run: |
+        wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+        sudo dpkg -i cloudflared-linux-amd64.deb
+
+    - name: 启动隧道
+      shell: bash
+      run: |
+        echo "==== 启动 Cloudflare 隧道 ===="
+        echo "时间: $(date)"
+        echo "提示：请确保 Cloudflare 隧道配置中的端口为 3390"
+        
+        if [ -z "$TUNNEL_TOKEN" ]; then
+          echo "错误：未设置隧道令牌!"
+          exit 1
+        fi
+        
+        # 测试端口
+        echo "测试 XRDP 端口..."
+        nc -zv localhost 3390 || true
+        
+        # 启动隧道
+        echo "正在启动隧道，请在 Cloudflare 控制台确认端口配置正确"
+        cloudflared tunnel run --token "$TUNNEL_TOKEN"
+      env:
+        TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }} 

@@ -1,0 +1,32 @@
+name: Windows RDP
+
+on:
+  workflow_call:
+    inputs:
+      tunnel:
+        required: true
+        type: string
+      password:
+        required: false
+        type: string
+        default: 'P@ssw0rd!'
+      timeout:
+        required: true
+        type: number
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: ${{ inputs.timeout }}
+    steps:
+      - uses: actions/checkout@v2
+      
+      # 复用的 Windows 配置步骤
+      - name: Configure Windows
+        uses: ./.github/actions/windows-setup
+        with:
+          password: ${{ inputs.password }}
+      
+      # 根据选择的隧道类型执行不同的操作
+      - name: Setup Tunnel
+        uses: ./.github/actions/${{ inputs.tunnel }}-tunnel 
