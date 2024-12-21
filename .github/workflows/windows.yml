@@ -37,5 +37,10 @@ jobs:
           password: ${{ inputs.password }}
       
       # 根据选择的隧道类型执行不同的操作
-      - name: Setup Tunnel
-        uses: ./.github/actions/${{ inputs.tunnel }}-tunnel 
+      - if: inputs.tunnel == 'cloudflared'
+        name: Setup Cloudflared
+        uses: ./.github/actions/cloudflared-tunnel
+        
+      - if: inputs.tunnel == 'ngrok'
+        name: Setup Ngrok
+        uses: ./.github/actions/ngrok-tunnel
