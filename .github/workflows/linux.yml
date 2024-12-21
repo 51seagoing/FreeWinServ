@@ -9,7 +9,7 @@ on:
         type: string
         default: 'P@ssw0rd!'
       timeout:
-        description: '运行时间 (60-360分钟，默认360)'
+        description: '运行时间 (60-360分钟)'
         required: true
         type: string
         default: '360'
@@ -20,11 +20,6 @@ jobs:
     timeout-minutes: ${{ fromJson(inputs.timeout) }}
     
     steps:
-      - name: 检查 Docker
-        run: |
-          docker --version
-          docker info
-      
       - name: 运行 Linux 桌面容器
         run: |
           docker run -d \
@@ -34,35 +29,11 @@ jobs:
             -e USER=runner \
             -e PASSWORD=${{ inputs.password }} \
             danielguerra/ubuntu-xrdp
-          
-          # 等待容器启动
-          sleep 10
-          
-          # 显示容器日志
-          docker logs linux-rdp
-      
-      - name: 配置 Cloudflared 隧道
+
+      - name: 配置 Cloudflared
         run: |
-          # 下载和安装 Cloudflared
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb
-          
-          echo "==== 启动 Cloudflare 隧道 ===="
-          echo "时间: $(date)"
-          
-          if [ -z "$TUNNEL_TOKEN" ]; then
-            echo "错误：未设置隧道令牌!"
-            exit 1
-          fi
-          
-          # 显示容器和端口状态
-          echo "==== 容器状态 ===="
-          docker ps
-          
-          echo "==== 端口状态 ===="
-          sudo netstat -tuln | grep 3390
-          
-          # 启动隧道
-          cloudflared tunnel --loglevel debug run --token "$TUNNEL_TOKEN"
+          cloudflared tunnel run --token "$TUNNEL_TOKEN"
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}

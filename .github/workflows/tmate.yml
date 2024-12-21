@@ -1,0 +1,54 @@
+name: Tmate Debug
+
+on: 
+  workflow_dispatch:   # 手动触发
+    inputs:
+      username:
+        description: 'SSH 用户名'
+        required: true
+        default: 'runner'
+        type: string
+      password:
+        description: 'SSH 密码'
+        required: true
+        default: 'P@ssw0rd!'
+        type: string
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    steps:
+    - name: 安装基础软件
+      run: |
+        sudo apt update
+        sudo apt install -y wget curl git nano net-tools openssh-server
+        
+        # 配置 SSH
+        echo "==== 配置 SSH ===="
+        sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        
+        # 创建用户并设置密码
+        sudo useradd -m -s /bin/bash ${{ inputs.username }} || true
+        echo "${{ inputs.username }}:${{ inputs.password }}" | sudo chpasswd
+        sudo usermod -aG sudo ${{ inputs.username }}
+        
+        # 启动 SSH 服务
+        sudo service ssh restart
+        
+        # 显示系统信息
+        echo "==== 系统信息 ===="
+        echo "用户名: ${{ inputs.username }}"
+        echo "SSH 状态:"
+        sudo service ssh status
+        echo "端口状态:"
+        netstat -tuln | grep 22
+
+    # 启动 Tmate 会话
+    - name: 启动 Tmate
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+        timeout-minutes: 360

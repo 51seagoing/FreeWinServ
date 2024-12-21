@@ -1,91 +1,40 @@
 name: Windows RDP
 
-on:
-  workflow_dispatch:
-    inputs:
-      tunnel:
-        description: |
-          选择隧道类型:
-          - cloudflared: 国外推荐
-          - ngrok: 国内推荐
-        required: true
-        type: choice
-        options:
-          - 'cloudflared'
-          - 'ngrok'
-        default: 'cloudflared'
-      password:
-        description: '远程桌面密码 (默认: P@ssw0rd!)'
-        required: false
-        type: string
-        default: 'P@ssw0rd!'
-      timeout:
-        description: '运行时间 (60-360分钟，默认360)'
-        required: true
-        type: string
-        default: '360'
+on: workflow_dispatch   # 手动触发
 
 jobs:
-  rdp:
-    runs-on: windows-latest
-    timeout-minutes: ${{ fromJson(inputs.timeout) }}
+  build:
+    runs-on: windows-latest    # 使用 Windows Server 2022
+    timeout-minutes: 360       # 运行 6 小时
+    
     steps:
-      - uses: actions/checkout@v2
-      
-      # Windows 基础配置
-      - name: 配置 Windows RDP
-        shell: pwsh
-        run: |
-          # 基础诊断信息
-          Write-Host "==== 初始状态检查 ===="
-          Write-Host "当前系统时间: $(Get-Date)"
-          systeminfo | Select-String "OS Name", "OS Version"
-          
-          # 启用 RDP
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-          
-          # 配置防火墙
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          
-          # 用户配置
-          $Password = ConvertTo-SecureString "${{ inputs.password }}" -AsPlainText -Force
-          Set-LocalUser -Name "runneradmin" -Password $Password
-      
-      # Cloudflared 隧道配置
-      - if: inputs.tunnel == 'cloudflared'
-        name: 配置 Cloudflared
-        shell: bash
-        run: |
-          # 下载和安装 Cloudflared
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -O cloudflared.exe
-          
-          # 启动隧道
-          echo "==== 启动 Cloudflare 隧道 ===="
-          echo "时间: $(date)"
-          
-          if [ -z "$TUNNEL_TOKEN" ]; then
-            echo "错误：未设置隧道令牌!"
+    - name: 下载 Cloudflared
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+    
+    - name: 启用远程桌面
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+        
+        # 显示 RDP 状态
+        Write-Host "==== RDP 配置 ===="
+        Get-Service TermService | Select-Object Status,StartType
+        Test-NetConnection -ComputerName localhost -Port 3389
+
+    - name: 启动隧道
+      run: |
+        Write-Host "正在启动 Cloudflare 隧道..."
+        
+        # 验证令牌
+        if (-not $env:TUNNEL_TOKEN) {
+            Write-Error "未设置隧道令牌!"
             exit 1
-          fi
-          
-          # 启动隧道
-          ./cloudflared.exe tunnel run --token "$TUNNEL_TOKEN"
-        env:
-          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
-      
-      # Ngrok 隧道配置
-      - if: inputs.tunnel == 'ngrok'
-        name: 配置 Ngrok
-        shell: pwsh
-        run: |
-          # 下载和安装 Ngrok
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
-          
-          # 配置 Ngrok
-          ./ngrok/ngrok.exe authtoken "$env:NGROK_TOKEN"
-          
-          # 启动隧道
-          ./ngrok/ngrok.exe tcp 3389
-        env:
-          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        }
+        
+        # 启动隧道
+        .\cloudflared.exe tunnel run --token "$env:TUNNEL_TOKEN"
+      env:
+        TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
