@@ -221,26 +221,16 @@ jobs:
             exit 1
           fi
           
-          # 创建配置文件
-          mkdir -p ~/.cloudflared
-          cat > ~/.cloudflared/config.yml <<EOF
-          tunnel: ${TUNNEL_TOKEN}
-          credentials-file: /etc/cloudflared/cert.pem
+          # 显示调试信息
+          echo "==== 网络状态 ===="
+          ip addr show
           
-          ingress:
-            - hostname: linux-rdp.51seagoing.us.kg
-              service: tcp://localhost:3390
-            - hostname: linux-ssh.51seagoing.us.kg
-              service: tcp://localhost:22
-            - service: http_status:404
-          EOF
+          echo "==== 端口状态 ===="
+          sudo netstat -tuln
           
-          # 测试配置
-          cloudflared tunnel ingress validate
-          
-          # 启动隧道
+          # 启动隧道并显示详细日志
           echo "正在启动隧道..."
-          cloudflared tunnel run --config ~/.cloudflared/config.yml
+          cloudflared tunnel --loglevel debug run --token "$TUNNEL_TOKEN"
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
       
