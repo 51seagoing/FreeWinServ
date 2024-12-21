@@ -1,6 +1,16 @@
 name: Windows-RDP-Ngrok
 
-on: [push, workflow_dispatch]
+on: 
+  workflow_dispatch:  # 删除 push 触发器，只保留 workflow_dispatch
+    inputs:
+      password:
+        description: '设置远程桌面密码'
+        required: false
+        default: 'P@ssw0rd!'
+      timeout:
+        description: '运行时间(分钟)'
+        required: true
+        default: '360'
 
 jobs:
   build:

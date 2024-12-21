@@ -1,77 +1,50 @@
-# GitHub Actions 配置教程
+# 远程桌面配置指南
 
-## 运行工作流程
+## 选择远程桌面类型
 
-### 1. 进入 Actions 页面
-![Step 1](images/step1.png)
-- 点击仓库顶部的 "Actions" 标签
-- 确保您已经将工作流文件添加到仓库中
+1. 转到仓库的 "Actions" 标签页
+2. 选择 "Remote Desktop Selector" 工作流
+3. 点击 "Run workflow"
+4. 在配置面板中选择：
 
-### 2. 选择工作流
-![Step 2](images/step2.png)
-- 在左侧边栏找到 "Linux-RDP" 工作流
-- 点击进入工作流详情页
+### 基本选项
+- **远程桌面类型** (rdp_type)：
+  * linux-xfce - Linux with XFCE (推荐)
+  * linux-mate - Linux with MATE
+  * linux-lxde - Linux with LXDE
+  * windows-rdp - Windows with Cloudflared
+  * ngrok-windows - Windows with Ngrok
 
-### 3. 运行工作流
-![Step 3](images/step3.png)
-- 点击 "Run workflow" 按钮
-- 会弹出配置面板
-
-### 4. 配置选项
-![Step 4](images/step4.png)
-在配置面板中设置：
-- **选择操作系统**：
-  * ubuntu - Ubuntu 最新版（推荐）
+### Linux 专用选项
+(仅当选择 Linux 类型时有效)
+- **操作系统** (os_type)：
+  * ubuntu - Ubuntu 最新版
   * debian - Debian 最新版
   * fedora - Fedora 最新版
   * centos - CentOS 最新版
 
-- **选择桌面环境**：
-  * xfce - 轻量级（推荐）
-  * mate - 传统风格
-  * lxde - 超轻量级
-
-- **选择浏览器**：
-  * firefox - Firefox（推荐）
+- **浏览器** (browser)：
+  * firefox - Firefox
   * chrome - Google Chrome
   * chromium - Chromium
 
-- **设置密码**：
-  * 默认：P@ssw0rd!
-  * 可以设置自定义密码
-
-- **运行时间**：
-  * 默认：360 分钟
-  * 范围：60-360 分钟
-
-### 5. 启动工作流
-- 确认配置无误后
-- 点击绿色的 "Run workflow" 按钮
-- 等待工作流启动和配置（3-5分钟）
+### 通用选项
+- **密码**：自定义远程桌面密码（默认：P@ssw0rd!）
+- **运行时间**：60-360 分钟（默认：360）
 
 ## 推荐配置
 
-### 首次使用推荐：
+### Linux 开发环境：
+- 远程桌面类型：linux-xfce
 - 操作系统：ubuntu
-- 桌面环境：xfce
 - 浏览器：firefox
-- 密码：使用默认密码
-- 运行时间：360分钟
 
-### 性能优先配置：
-- 操作系统：debian
-- 桌面环境：lxde
-- 浏览器：chromium
-- 运行时间：根据需要设置
-
-### 开发环境配置：
-- 操作系统：fedora
-- 桌面环境：mate
-- 浏览器：chrome
-- 运行时间：360分钟
+### Windows 环境：
+- 远程桌面类型：windows-rdp（国外推荐）
+- 或 ngrok-windows（国内推荐）
 
 ## 注意事项
-1. 确保在运行前已经正确配置了 Cloudflare 隧道
-2. 建议首次使用时使用推荐配置
-3. 可以同时运行多个不同配置的实例
-4. 使用完毕后记得停止工作流 
+1. 不同类型的远程桌面使用不同的连接方式
+2. Linux 环境提供更多自定义选项
+3. Windows 环境提供更好的兼容性
+4. 使用完毕后记得停止工作流

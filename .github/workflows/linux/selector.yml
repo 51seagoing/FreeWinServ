@@ -1,0 +1,27 @@
+name: "Linux RDP Selector"
+on:
+  workflow_dispatch:
+    inputs:
+      os_type:
+        description: '选择操作系统'
+        required: true
+        type: choice
+        options: ['ubuntu', 'debian', 'fedora', 'centos']
+      desktop_env:
+        description: '选择桌面环境'
+        required: true
+        type: choice
+        options: ['xfce', 'mate', 'lxde']
+      browser:
+        description: '选择浏览器'
+        required: true
+        type: choice
+        options: ['firefox', 'chrome', 'chromium']
+      password:
+        description: '设置密码'
+        required: false
+        default: 'P@ssw0rd!'
+      timeout:
+        description: '运行时间(分钟)'
+        required: true
+        default: '360' 

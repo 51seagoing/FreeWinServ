@@ -1,0 +1,45 @@
+name: Remote Desktop Entry
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: |
+          选择远程桌面类型:
+          1 = Windows + Cloudflared (国外推荐)
+          2 = Windows + Ngrok (国内推荐)
+          3 = Linux 远程桌面
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+
+jobs:
+  entry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Route to Workflow
+        id: router
+        run: |
+          case "${{ github.event.inputs.type }}" in
+            "1")
+              echo "::set-output name=workflow::.github/workflows/windows/cloudflared.yml"
+              echo "选择了 Windows + Cloudflared 方案"
+              ;;
+            "2")
+              echo "::set-output name=workflow::.github/workflows/windows/ngrok.yml"
+              echo "选择了 Windows + Ngrok 方案"
+              ;;
+            "3")
+              echo "::set-output name=workflow::.github/workflows/linux/selector.yml"
+              echo "选择了 Linux 远程桌面方案"
+              ;;
+          esac
+
+      - name: Trigger Workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: ${{ steps.router.outputs.workflow }} 

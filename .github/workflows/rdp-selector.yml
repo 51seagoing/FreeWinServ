@@ -1,0 +1,185 @@
+name: Remote Desktop Selector
+
+on:
+  workflow_dispatch:
+    inputs:
+      rdp_type:
+        description: |
+          选择远程桌面类型:
+          1 = Windows + Cloudflared (国外推荐)
+          2 = Windows + Ngrok (国内推荐)
+          3 = Linux + XFCE (轻量桌面)
+          4 = Linux + MATE (传统桌面)
+          5 = Linux + LXDE (超轻量桌面)
+        required: true
+        default: '1'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+      os_type:
+        description: |
+          Linux系统类型 (仅Linux选项3/4/5有效):
+          1 = Ubuntu (推荐)
+          2 = Debian
+          3 = Fedora
+          4 = CentOS
+        required: false
+        default: '1'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+      browser:
+        description: |
+          浏览器选择 (仅Linux选项有效):
+          1 = Firefox (推荐)
+          2 = Chrome
+          3 = Chromium
+        required: false
+        default: '1'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+      password:
+        description: '设置远程桌面密码'
+        required: false
+        default: 'P@ssw0rd!'
+      timeout:
+        description: '运行时间(分钟, 范围60-360)'
+        required: true
+        default: '360'
+        type: number
+
+jobs:
+  select-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Check Permissions
+        run: |
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            echo "只允许通过手动触发方式运行此工作流"
+            exit 1
+          fi
+          
+          if [[ "${{ github.actor }}" != "${{ github.repository_owner }}" ]]; then
+            echo "只有仓库所有者可以运行此工作流"
+            exit 1
+          fi
+      
+      - name: Set Environment
+        id: set-env
+        run: |
+          # 转换RDP类型
+          case "${{ github.event.inputs.rdp_type }}" in
+            "1") 
+              RDP_TYPE="windows-rdp"
+              WORKFLOW="cloudflared.yml"
+              ;;
+            "2") 
+              RDP_TYPE="ngrok-windows"
+              WORKFLOW="ngrok.yml"
+              ;;
+            "3") 
+              RDP_TYPE="linux-xfce"
+              WORKFLOW="linux-rdp.yml"
+              DESKTOP_ENV="xfce"
+              ;;
+            "4") 
+              RDP_TYPE="linux-mate"
+              WORKFLOW="linux-rdp.yml"
+              DESKTOP_ENV="mate"
+              ;;
+            "5") 
+              RDP_TYPE="linux-lxde"
+              WORKFLOW="linux-rdp.yml"
+              DESKTOP_ENV="lxde"
+              ;;
+          esac
+          
+          # 转换操作系统类型
+          case "${{ github.event.inputs.os_type }}" in
+            "1") OS_TYPE="ubuntu" ;;
+            "2") OS_TYPE="debian" ;;
+            "3") OS_TYPE="fedora" ;;
+            "4") OS_TYPE="centos" ;;
+          esac
+          
+          # 转换浏览器类型
+          case "${{ github.event.inputs.browser }}" in
+            "1") BROWSER="firefox" ;;
+            "2") BROWSER="chrome" ;;
+            "3") BROWSER="chromium" ;;
+          esac
+          
+          # 输出配置信息
+          echo "==== 远程桌面配置信息 ===="
+          echo "选择的配置:"
+          case $RDP_TYPE in
+            "windows-rdp")
+              echo "- 系统类型: Windows"
+              echo "- 连接方式: Cloudflared (适合国外访问)"
+              echo "- 特点: 稳定性好，支持完整Windows功能"
+              ;;
+            "ngrok-windows")
+              echo "- 系统类型: Windows"
+              echo "- 连接方式: Ngrok (适合国内访问)"
+              echo "- 特点: 连接速度快，适合国内用户"
+              ;;
+            "linux-"*)
+              echo "- 系统类型: Linux ($OS_TYPE)"
+              case $RDP_TYPE in
+                "linux-xfce")  echo "- 桌面环境: XFCE (轻量级，性能好)" ;;
+                "linux-mate")  echo "- 桌面环境: MATE (传统界面，功能全)" ;;
+                "linux-lxde")  echo "- 桌面环境: LXDE (超轻量，性能最佳)" ;;
+              esac
+              echo "- 浏览器: $BROWSER"
+              echo "- 特点: 定制性强，资源占用少"
+              ;;
+          esac
+          
+          echo "- 运行时间: ${{ github.event.inputs.timeout }} 分钟"
+          echo "- 密码: ${PASSWORD:-P@ssw0rd!}"
+          echo "================================"
+          
+          # 设置输出变量
+          echo "::set-output name=workflow::$WORKFLOW"
+          echo "::set-output name=rdp_type::$RDP_TYPE"
+          echo "::set-output name=os_type::$OS_TYPE"
+          echo "::set-output name=desktop_env::$DESKTOP_ENV"
+          echo "::set-output name=browser::$BROWSER"
+          
+          echo "正在启动工作流: $WORKFLOW"
+          echo "请等待环境配置完成（约3-5分钟）"
+
+      - name: Validate Workflow
+        run: |
+          WORKFLOW="${{ steps.set-env.outputs.workflow }}"
+          VALID_WORKFLOWS=("linux-rdp.yml" "cloudflared.yml" "ngrok.yml")
+          
+          if [[ ! " ${VALID_WORKFLOWS[@]} " =~ " ${WORKFLOW} " ]]; then
+            echo "错误：无效的工作流文件 ${WORKFLOW}"
+            exit 1
+          fi
+
+      - name: Trigger Selected Workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: ${{ steps.set-env.outputs.workflow }}
+          inputs: |
+            {
+              "os_type": "${{ steps.set-env.outputs.os_type }}",
+              "desktop_env": "${{ steps.set-env.outputs.desktop_env }}",
+              "browser": "${{ steps.set-env.outputs.browser }}",
+              "password": "${{ github.event.inputs.password }}",
+              "timeout": "${{ github.event.inputs.timeout }}"
+            } 
