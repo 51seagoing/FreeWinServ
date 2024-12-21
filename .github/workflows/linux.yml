@@ -221,12 +221,50 @@ jobs:
             exit 1
           fi
           
-          # 测试 XRDP 端口
-          echo "测试 XRDP 端口..."
-          nc -zv localhost 3390 || true
+          # 创建配置文件
+          mkdir -p ~/.cloudflared
+          cat > ~/.cloudflared/config.yml <<EOF
+          tunnel: ${TUNNEL_TOKEN}
+          credentials-file: /etc/cloudflared/cert.pem
+          
+          ingress:
+            - hostname: linux-rdp.51seagoing.us.kg
+              service: tcp://localhost:3390
+            - hostname: linux-ssh.51seagoing.us.kg
+              service: tcp://localhost:22
+            - service: http_status:404
+          EOF
+          
+          # 测试配置
+          cloudflared tunnel ingress validate
           
           # 启动隧道
           echo "正在启动隧道..."
-          cloudflared tunnel run --token "$TUNNEL_TOKEN"
+          cloudflared tunnel run --config ~/.cloudflared/config.yml
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
+      
+      - name: 配置 SSH
+        shell: bash
+        run: |
+          # 安装 SSH 服务器
+          sudo apt-get install -y openssh-server
+          
+          # 配置 SSH
+          sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          
+          # 设置 SSH 密码
+          echo "runner:${{ inputs.password }}" | sudo chpasswd
+          
+          # 启动 SSH 服务
+          sudo service ssh restart
+          
+          # 显示 SSH 状态
+          echo "==== SSH 服务状态 ===="
+          sudo service ssh status
+          
+          # 显示 SSH 端口
+          echo "==== SSH 端口 ===="
+          sudo netstat -tuln | grep 22
