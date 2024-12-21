@@ -6,41 +6,60 @@ on:
       type:
         description: |
           选择远程桌面类型:
-          1 = Windows + Cloudflared (国外推荐)
-          2 = Windows + Ngrok (国内推荐)
-          3 = Linux + XFCE (轻量快速，推荐)
-          4 = Linux + MATE (Ubuntu 原生体验)
-          5 = Linux + LXDE (超轻量，性能最佳)
+          
+          Windows 远程桌面:
+            1 = Windows + Cloudflared (国外推荐)
+            2 = Windows + Ngrok (国内推荐)
+          
+          Linux 远程桌面:
+            3 = Linux + XFCE (轻量快速，推荐)
+            4 = Linux + MATE (Ubuntu 原生体验)
+            5 = Linux + LXDE (超轻量，性能最佳)
         required: true
         default: '1'
         type: choice
         options: ['1', '2', '3', '4', '5']
       os_type:
         description: |
-          Ubuntu 版本选择 (仅Linux选项有效):
-          1 = Ubuntu Latest (推荐)
-          2 = Ubuntu 22.04
-          3 = Ubuntu 20.04
+          选择 Ubuntu 版本:
+          
+          推荐选项:
+            1 = Ubuntu Latest (最新版本，推荐)
+          
+          其他选项:
+            2 = Ubuntu 22.04 LTS (长期支持版)
+            3 = Ubuntu 20.04 LTS (稳定版本)
         required: false
         default: '1'
         type: choice
         options: ['1', '2', '3']
       browser:
         description: |
-          浏览器选择 (仅Linux选项有效):
-          1 = Firefox (推荐，最稳定)
-          2 = Chrome (需要额外下载)
-          3 = Chromium (轻量级选择)
+          选择浏览器:
+          
+          推荐选项:
+            1 = Firefox (最稳定，推荐)
+          
+          其他选项:
+            2 = Chrome (功能完整)
+            3 = Chromium (轻量快速)
         required: false
         default: '1'
         type: choice
         options: ['1', '2', '3']
       password:
-        description: '设置远程桌面密码'
+        description: |
+          设置远程桌面密码:
+          - 默认: P@ssw0rd!
+          - 建议: 使用自定义强密码
         required: false
         default: 'P@ssw0rd!'
       timeout:
-        description: '运行时间(分钟, 范围60-360)'
+        description: |
+          设置运行时间:
+          - 范围: 60-360 分钟
+          - 默认: 360 分钟
+          - 注意: 超时后会自动停止
         required: true
         default: '360'
         type: number

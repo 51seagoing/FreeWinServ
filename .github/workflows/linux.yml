@@ -4,19 +4,34 @@ on:
   workflow_call:
     inputs:
       os:
+        description: |
+          Ubuntu 系统版本
+          支持: latest, 22.04, 20.04
         required: true
         type: string
       desktop:
+        description: |
+          桌面环境类型
+          选项: xfce, mate, lxde
         required: true
         type: string
       browser:
+        description: |
+          浏览器类型
+          选项: firefox, chrome, chromium
         required: true
         type: string
       password:
+        description: |
+          远程桌面密码
+          默认: P@ssw0rd!
         required: false
         type: string
         default: 'P@ssw0rd!'
       timeout:
+        description: |
+          运行时间(分钟)
+          范围: 60-360
         required: true
         type: number
 

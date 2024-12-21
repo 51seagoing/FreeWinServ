@@ -4,13 +4,22 @@ on:
   workflow_call:
     inputs:
       tunnel:
+        description: |
+          隧道类型
+          选项: cloudflared, ngrok
         required: true
         type: string
       password:
+        description: |
+          远程桌面密码
+          默认: P@ssw0rd!
         required: false
         type: string
         default: 'P@ssw0rd!'
       timeout:
+        description: |
+          运行时间(分钟)
+          范围: 60-360
         required: true
         type: number
 
