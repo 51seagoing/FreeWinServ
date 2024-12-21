@@ -13,11 +13,18 @@ on:
         required: true
         default: 'P@ssw0rd!'
         type: string
+      timeout:
+        description: '运行时间 (分钟，最大360)'
+        required: true
+        type: number
+        default: 360
+        minimum: 10
+        maximum: 360
 
 jobs:
   debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: ${{ inputs.timeout }}
     
     steps:
     - name: 安装基础软件
@@ -41,6 +48,7 @@ jobs:
         # 显示系统信息
         echo "==== 系统信息 ===="
         echo "用户名: ${{ inputs.username }}"
+        echo "运行时间: ${{ inputs.timeout }} 分钟"
         echo "SSH 状态:"
         sudo service ssh status
         echo "端口状态:"
@@ -51,4 +59,4 @@ jobs:
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
-        timeout-minutes: 360
+        timeout-minutes: ${{ inputs.timeout }}
