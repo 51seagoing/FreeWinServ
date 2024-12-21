@@ -44,7 +44,7 @@ on:
 jobs:
   build:
     runs-on: ${{ github.event.inputs.os_type }}-latest
-    timeout-minutes: ${{ github.event.inputs.timeout }}
+    timeout-minutes: ${{ fromJson(github.event.inputs.timeout) }}
     
     steps:
     - name: 安装桌面环境和 XRDP

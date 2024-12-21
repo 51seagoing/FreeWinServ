@@ -15,7 +15,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: ${{ fromJson(github.event.inputs.timeout) }}
     
     steps:
     - name: Download
