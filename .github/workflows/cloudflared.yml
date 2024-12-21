@@ -1,0 +1,26 @@
+name: Windows-RDP-Cloudflared
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    
+    steps:
+    - name: Download Cloudflared
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+    
+    - name: Enable RDP
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+    
+    - name: Create Tunnel
+      run: |
+        .\cloudflared.exe tunnel --no-autoupdate --url tcp://localhost:3389
+      env:
+        TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }} 

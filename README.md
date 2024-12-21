@@ -1,52 +1,86 @@
-# Free Windows Server 2022 With RDP For
-a free  winows   server
+# Windows Server 2022 RDP via GitHub Actions
 
-This repository is all about getting free windows server 2022 with rdp using github jobs & ngrok tunnel. In this github repositoyr i added the step by step guide to have a free windows vsp server thorugh github and accessing it via remote desktop connection.
+此项目提供使用 GitHub Actions 设置 Windows Server 环境的指南，支持通过 Ngrok 或 Cloudflared 隧道进行访问。
 
-1.Steps To Create Windows Server
-Sign Up a GitHub Account : https://github.com/
-Create a Private Repository, Go to repository settings > Secrets and variables > Actions > New Repository Secrets
+## 选择您的连接方式
 
-NGROK_AUTH_TOKEN 
+我们提供两种连接方案，您可以根据需求选择：
 
-![image-20241221105753381](images/image-20241221105753381.png)
+### [方案一：使用 Ngrok](ngrok.md)
+- 优点：配置简单，连接稳定
+- 缺点：需要信用卡验证或付费计划
+- 适合：需要稳定性的用户
+- [点击查看详细设置指南](ngrok.md)
 
-2.Sign Up a Ngrok Account : https://ngrok.com/
-Copy the auth key from ngrok and add to github repository secrets
-Setup New Workflow Manually the Put the following code in main.yml and commit changes
+### [方案二：使用 Cloudflared](Cloudflared%20.md)
+- 优点：完全免费，无需信用卡
+- 缺点：配置相对复杂
+- 适合：注重隐私和安全的用户
+- [点击查看详细设置指南](Cloudflared%20.md)
 
-![image-20241221105219423](images/image-20241221105219423.png)
+## 通用信息
 
-```yaml
-name: CI
+### 系统信息
+- 操作系统：Windows Server 2022
+- 运行环境：GitHub Actions
+- 连接方式：远程桌面（RDP）
 
-on: [push, workflow_dispatch]
+### 默认凭据
+- 用户名：`runneradmin`
+- 密码：`P@ssw0rd!`
 
-jobs:
-  build:
+### 使用限制
+1. GitHub Actions 运行器时间限制为 6 小时
+2. 建议使用私有仓库以保护安全
+3. 仅用于测试和教育目的
 
-    runs-on: windows-latest
-    
-    steps:
-    - name: Download
-      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-    - name: Extract
-      run: Expand-Archive ngrok.zip
-    - name: Auth
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-    - name: Enable TS
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
-    - name: Create Tunnel
-      run: .\ngrok\ngrok.exe tcp 3389
-
-
-
+### 文件结构
+```
+.
+├── README.md           # 本文件
+├── ngrok.md           # Ngrok 设置指南
+├── Cloudflared .md    # Cloudflared 设置指南
+└── .github
+    └── workflows
+        ├── ngrok.yml      # Ngrok 工作流配置
+        └── cloudflared.yml # Cloudflared 工作流配置
 ```
 
-Run The WorkFlow and take note of credentials (runneradmin:P@ssw0rd!)
-Get the ngrok endpoint url and use it as ip or address in Remote Desktop Connection with credentials
+## 快速开始
+
+1. 选择您偏好的连接方式：
+   - [Ngrok 设置指南](ngrok.md)
+   - [Cloudflared 设置指南](Cloudflared%20.md)
+
+2. 按照选定指南完成配置
+
+3. 运行工作流：
+   - 转到仓库的 "Actions" 标签页
+   - 选择相应的工作流
+   - 点击 "Run workflow"
+
+4. 使用远程桌面连接：
+   - 等待工作流执行完成
+   - 在日志中找到连接地址
+   - 使用默认凭据进行连接
+
+## 注意事项
+
+- 请确保遵守相关服务条款
+- 保护好您的凭据和令牌
+- 定期更新配置以确保安全
+- 如遇问题，请查看相应指南的故障排除部分
+
+## 相关链接
+
+- [GitHub Actions 文档](https://docs.github.com/cn/actions)
+- [Ngrok 官网](https://ngrok.com/)
+- [Cloudflare 官网](https://www.cloudflare.com/)
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request 来改进本项目。
+
+## 免责声明
+
+本项目仅供学习和测试使用，请勿用于生产环境或其他非法用途。使用本项目造成的任何问题，项目维护者概不负责。
