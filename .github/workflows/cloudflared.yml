@@ -12,75 +12,80 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
     
-    - name: Enable RDP
+    - name: Enable RDP and Diagnostics
       run: |
-        # 启用 RDP 服务
+        # 基础诊断信息
+        Write-Host "==== 初始状态检查 ===="
+        Write-Host "当前系统时间: $(Get-Date)"
+        systeminfo | Select-String "OS Name", "OS Version"
+        
+        # 检查并配置 RDP 服务
+        Write-Host "`n==== RDP 服务配置 ===="
+        $rdpService = Get-Service TermService
+        Write-Host "RDP 服务初始状态: $($rdpService.Status)"
+        
+        # 启用 RDP
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Write-Host "已启用 RDP 连接"
         
-        # 配置 Network Level Authentication (Windows 11 需要)
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        # 配置 RDP 安全设置
+        $rdpWinStationsPath = 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
+        Set-ItemProperty -Path $rdpWinStationsPath -name "UserAuthentication" -Value 0
+        Set-ItemProperty -Path $rdpWinStationsPath -name "SecurityLayer" -Value 0
+        Set-ItemProperty -Path $rdpWinStationsPath -name "MinEncryptionLevel" -Value 0
+        Write-Host "已配置 RDP 安全设置"
         
-        # 启用防火墙规则
+        # 配置防火墙
+        Write-Host "`n==== 防火墙配置 ===="
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        $rdpRules = Get-NetFirewallRule | Where-Object {$_.DisplayName -like "*Remote Desktop*"}
+        $rdpRules | Format-Table DisplayName, Enabled, Direction, Action
         
-        # 启动 Remote Desktop 服务
-        Start-Service TermService
-        Set-Service TermService -StartupType Automatic
-        
-        # 配置用户和权限
+        # 用户配置
+        Write-Host "`n==== 用户配置 ===="
         $Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
         Enable-LocalUser -Name "runneradmin"
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
+        Get-LocalUser runneradmin | Format-List Name, Enabled, LastLogon
+        Get-LocalGroupMember "Remote Desktop Users" | Format-List
         
-        # 添加到 Remote Desktop Users 组（使用错误处理）
-        try {
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction Stop
-        } catch {
-            Write-Host "Note: User already in Remote Desktop Users group"
-        }
+        # 检查端口
+        Write-Host "`n==== 端口检查 ===="
+        $portTest = Test-NetConnection -ComputerName localhost -Port 3389 -WarningAction SilentlyContinue
+        Write-Host "RDP 端口状态: $($portTest.TcpTestSucceeded)"
         
-        # Windows 11 RDP 安全设置
-        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "SecurityLayer" -Value 2
-        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "MinEncryptionLevel" -Value 3
+        # 检查 RDP 配置
+        Write-Host "`n==== RDP 配置详情 ===="
+        Get-ItemProperty -Path $rdpWinStationsPath | Format-List UserAuthentication, SecurityLayer, MinEncryptionLevel
         
-        # 启用远程桌面连接代理
-        Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -name "fEnableTerminalServerDR" -Value 1
+        # 检查网络状态
+        Write-Host "`n==== 网络状态 ===="
+        ipconfig /all
         
-        # 验证 RDP 服务状态
-        $rdpService = Get-Service TermService
-        Write-Host "RDP Service Status: $($rdpService.Status)"
+        # 最终服务状态
+        Write-Host "`n==== 最终服务状态 ===="
+        Get-Service TermService, UmRdpService | Format-Table Name, Status, StartType
         
         # 等待服务完全启动
         Start-Sleep -Seconds 10
-        
-        # 显示配置信息
-        Write-Host "==== 用户信息 ===="
-        Get-LocalUser runneradmin | Select-Object Name,Enabled,LastLogon | Format-List
-        
-        Write-Host "==== 组成员身份 ===="
-        Get-LocalGroupMember -Group "Administrators" | Where-Object {$_.Name -like "*runneradmin*"} | Format-List
-        Get-LocalGroupMember -Group "Remote Desktop Users" | Where-Object {$_.Name -like "*runneradmin*"} | Format-List
-        
-        Write-Host "==== RDP 配置 ===="
-        Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' | Select-Object UserAuthentication,SecurityLayer,MinEncryptionLevel
+        Write-Host "配置完成，服务已启动"
     
     - name: Create Tunnel
       run: |
-        Write-Host "Starting Cloudflare Tunnel..."
-        Write-Host "============================================"
+        Write-Host "`n==== 启动 Cloudflare 隧道 ===="
+        Write-Host "时间: $(Get-Date)"
         
-        # 验证令牌
         if (-not $env:TUNNEL_TOKEN) {
-            Write-Error "Tunnel token is not set!"
+            Write-Error "未设置隧道令牌!"
             exit 1
         }
         
-        # 确保 RDP 端口可访问
-        $testPort = Test-NetConnection -ComputerName localhost -Port 3389
-        Write-Host "RDP Port Status: $($testPort.TcpTestSucceeded)"
+        # 最终连接测试
+        $finalTest = Test-NetConnection -ComputerName localhost -Port 3389 -WarningAction SilentlyContinue
+        Write-Host "最终 RDP 端口测试: $($finalTest.TcpTestSucceeded)"
         
-        # 直接运行隧道
-        Write-Host "Running tunnel with token..."
+        Write-Host "正在启动隧道..."
         .\cloudflared.exe tunnel run --token "$env:TUNNEL_TOKEN"
       env:
         TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}

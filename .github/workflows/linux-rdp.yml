@@ -1,0 +1,163 @@
+name: Linux-RDP
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_type:
+        description: '选择操作系统'
+        required: true
+        default: 'ubuntu'
+        type: choice
+        options:
+        - ubuntu
+        - debian
+        - fedora
+        - centos
+      desktop_env:
+        description: '选择桌面环境'
+        required: true
+        default: 'xfce'
+        type: choice
+        options:
+        - xfce
+        - mate
+        - lxde
+      browser:
+        description: '安装浏览器'
+        required: true
+        default: 'firefox'
+        type: choice
+        options:
+        - firefox
+        - chrome
+        - chromium
+      password:
+        description: '设置远程桌面密码'
+        required: false
+        default: 'P@ssw0rd!'
+      timeout:
+        description: '运行时间(分钟)'
+        required: true
+        default: '360'
+        type: number
+
+jobs:
+  build:
+    runs-on: ${{ github.event.inputs.os_type }}-latest
+    timeout-minutes: ${{ github.event.inputs.timeout }}
+    
+    steps:
+    - name: 安装桌面环境和 XRDP
+      run: |
+        # 设置变量
+        DESKTOP_ENV="${{ github.event.inputs.desktop_env }}"
+        BROWSER="${{ github.event.inputs.browser }}"
+        PASSWORD="${{ github.event.inputs.password }}"
+        
+        # Ubuntu/Debian 系统
+        if [ -f "/etc/debian_version" ]; then
+          sudo apt-get update
+          # 安装选择的桌面环境
+          case $DESKTOP_ENV in
+            "xfce")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies
+              ;;
+            "mate")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mate-desktop-environment-core
+              ;;
+            "lxde")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lxde-core
+              ;;
+          esac
+          
+          # 安装选择的浏览器
+          case $BROWSER in
+            "firefox")
+              sudo apt-get install -y firefox
+              ;;
+            "chrome")
+              wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
+              ;;
+            "chromium")
+              sudo apt-get install -y chromium-browser
+              ;;
+          esac
+          
+          # 安装 XRDP
+          sudo apt-get install -y xrdp
+          
+        # Fedora 系统
+        elif [ -f "/etc/fedora-release" ]; then
+          sudo dnf -y update
+          sudo dnf -y groupinstall "Xfce Desktop"
+          sudo dnf -y install xrdp firefox
+        
+        # CentOS 系统
+        elif [ -f "/etc/centos-release" ]; then
+          sudo yum -y update
+          sudo yum -y groupinstall "Xfce"
+          sudo yum -y install epel-release
+          sudo yum -y install xrdp firefox
+        fi
+        
+        # 通用配置
+        sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
+        sudo sed -i 's/3389/3390/g' /etc/xrdp/xrdp.ini
+        sudo sed -i 's/max_bpp=32/max_bpp=128/g' /etc/xrdp/xrdp.ini
+        sudo sed -i 's/xserverbpp=24/xserverbpp=30/g' /etc/xrdp/xrdp.ini
+        echo xfce4-session > ~/.xsession
+        
+        # 设置密码
+        sudo useradd -m -s /bin/bash runner || true
+        if [ ! -z "$PASSWORD" ]; then
+          echo "runner:$PASSWORD" | sudo chpasswd
+        else
+          echo "runner:P@ssw0rd!" | sudo chpasswd
+        fi
+        sudo usermod -aG sudo runner || sudo usermod -aG wheel runner
+        
+        # 启动服务
+        sudo systemctl enable xrdp
+        sudo systemctl restart xrdp
+        
+        # 显示状态
+        echo "==== 服务状态 ===="
+        sudo systemctl status xrdp
+        
+        echo "==== 网络状态 ===="
+        sudo netstat -tuln | grep 3390
+        echo "注意：XRDP 使用 3390 端口，请确保 Cloudflare 隧道配置正确指向此端口"
+
+    - name: 下载 Cloudflared
+      run: |
+        if [ -f "/etc/debian_version" ]; then
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+        else
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+        fi
+
+    - name: 启动隧道
+      run: |
+        echo "==== 启动 Cloudflare 隧道 ===="
+        echo "时间: $(date)"
+        echo "系统类型: ${{ github.event.inputs.os_type }}"
+        echo "提示：请确保 Cloudflare 隧道配置中的端口为 3390"
+        
+        if [ -z "$TUNNEL_TOKEN" ]; then
+          echo "错误：未设置隧道令牌!"
+          exit 1
+        fi
+        
+        # 测试端口
+        echo "测试 XRDP 端口..."
+        nc -zv localhost 3390 || true
+        
+        # 启动隧道
+        echo "正在启动隧道，请在 Cloudflare 控制台确认端口配置正确"
+        cloudflared tunnel run --token "$TUNNEL_TOKEN"
+      env:
+        TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
