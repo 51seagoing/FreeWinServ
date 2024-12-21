@@ -1,56 +1,139 @@
 name: Linux RDP
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      os:
+      os_type:
         description: |
-          Ubuntu 系统版本
-          支持: latest, 22.04, 20.04
+          选择 Ubuntu 版本:
         required: true
-        type: string
+        type: choice
+        options:
+          - 'Ubuntu Latest (推荐)'
+          - 'Ubuntu 22.04 LTS'
+          - 'Ubuntu 20.04 LTS'
+        default: 'Ubuntu Latest (推荐)'
       desktop:
         description: |
-          桌面环境类型
-          选项: xfce, mate, lxde
+          选择桌面环境:
+          - xfce: 轻量快速
+          - mate: 完整体验
+          - lxde: 超轻量级
         required: true
-        type: string
+        type: choice
+        options:
+          - 'xfce'
+          - 'mate'
+          - 'lxde'
+        default: 'xfce'
       browser:
         description: |
-          浏览器类型
-          选项: firefox, chrome, chromium
+          选择浏览器:
         required: true
-        type: string
+        type: choice
+        options:
+          - 'Firefox (推荐)'
+          - 'Chrome'
+          - 'Chromium'
+        default: 'Firefox (推荐)'
       password:
-        description: |
-          远程桌面密码
-          默认: P@ssw0rd!
+        description: '远程桌面密码 (默认: P@ssw0rd!)'
         required: false
         type: string
         default: 'P@ssw0rd!'
       timeout:
-        description: |
-          运行时间(分钟)
-          范围: 60-360
+        description: '运行时间 (60-360分钟，默认360)'
         required: true
         type: string
         default: '360'
 
 jobs:
   rdp:
-    runs-on: ${{ inputs.os }}
+    runs-on: ${{ 
+      inputs.os_type == 'Ubuntu Latest (推荐)' && 'ubuntu-latest' ||
+      inputs.os_type == 'Ubuntu 22.04 LTS' && 'ubuntu-22.04' ||
+      inputs.os_type == 'Ubuntu 20.04 LTS' && 'ubuntu-20.04'
+    }}
     timeout-minutes: ${{ fromJson(inputs.timeout) }}
     steps:
       - uses: actions/checkout@v2
       
-      # 复用的 Linux 配置步骤
-      - name: Setup Desktop
-        uses: ./.github/actions/linux-desktop
-        with:
-          desktop: ${{ inputs.desktop }}
-          browser: ${{ inputs.browser }}
-          password: ${{ inputs.password }}
+      # 安装桌面环境和 XRDP
+      - name: 配置桌面环境
+        shell: bash
+        run: |
+          # 更新系统
+          sudo apt-get update
+          
+          # 安装桌面环境
+          case "${{ inputs.desktop }}" in
+            "xfce")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies
+              ;;
+            "mate")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mate-desktop-environment-core
+              ;;
+            "lxde")
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lxde-core
+              ;;
+          esac
+          
+          # 安装选择的浏览器
+          case "${{ inputs.browser }}" in
+            "Firefox (推荐)")
+              sudo apt-get install -y firefox
+              ;;
+            "Chrome")
+              wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
+              ;;
+            "Chromium")
+              sudo apt-get install -y chromium-browser
+              ;;
+          esac
+          
+          # 安装 XRDP
+          sudo apt-get install -y xrdp
+          
+          # 配置 XRDP
+          sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
+          sudo sed -i 's/3389/3390/g' /etc/xrdp/xrdp.ini
+          sudo sed -i 's/max_bpp=32/max_bpp=128/g' /etc/xrdp/xrdp.ini
+          sudo sed -i 's/xserverbpp=24/xserverbpp=30/g' /etc/xrdp/xrdp.ini
+          echo xfce4-session > ~/.xsession
+          
+          # 设置用户
+          sudo useradd -m -s /bin/bash runner || true
+          echo "runner:${{ inputs.password }}" | sudo chpasswd
+          sudo usermod -aG sudo runner
+          
+          # 启动服务
+          sudo systemctl enable xrdp
+          sudo systemctl restart xrdp
       
-      # 复用的隧道配置
-      - name: Setup Tunnel
-        uses: ./.github/actions/cloudflared-tunnel 
+      # 配置 Cloudflared 隧道
+      - name: 配置隧道
+        shell: bash
+        run: |
+          # 下载和安装 Cloudflared
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+          
+          echo "==== 启动 Cloudflare 隧道 ===="
+          echo "时间: $(date)"
+          echo "提示：请确保 Cloudflare 隧道配置中的端口为 3390"
+          
+          if [ -z "$TUNNEL_TOKEN" ]; then
+            echo "错误：未设置隧道令牌!"
+            exit 1
+          fi
+          
+          # 测试端口
+          echo "测试 XRDP 端口..."
+          nc -zv localhost 3390 || true
+          
+          # 启动隧道
+          echo "正在启动隧道，请在 Cloudflare 控制台确认端口配置正确"
+          cloudflared tunnel run --token "$TUNNEL_TOKEN"
+        env:
+          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
