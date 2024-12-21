@@ -17,7 +17,7 @@ jobs:
         # 启用 RDP 服务
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
         
-        # 启用 Network Level Authentication
+        # 配置 Network Level Authentication (Windows 11 需要)
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
         
         # 启用防火墙规则
@@ -27,15 +27,33 @@ jobs:
         Start-Service TermService
         Set-Service TermService -StartupType Automatic
         
-        # 设置用户密码
-        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
+        # 配置用户和权限
+        $Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+        Enable-LocalUser -Name "runneradmin"
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
+        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+        
+        # Windows 11 RDP 安全设置
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "SecurityLayer" -Value 2
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "MinEncryptionLevel" -Value 3
+        
+        # 启用远程桌面连接代理
+        Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -name "fEnableTerminalServerDR" -Value 1
         
         # 验证 RDP 服务状态
         $rdpService = Get-Service TermService
         Write-Host "RDP Service Status: $($rdpService.Status)"
         
         # 等待服务完全启动
-        Start-Sleep -Seconds 5
+        Start-Sleep -Seconds 10
+        
+        # 显示配置信息
+        Write-Host "==== 用户信息 ===="
+        Get-LocalUser runneradmin | Select-Object Name,Enabled,LastLogon | Format-List
+        
+        Write-Host "==== RDP 配置 ===="
+        Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' | Select-Object UserAuthentication,SecurityLayer,MinEncryptionLevel
     
     - name: Create Tunnel
       run: |
