@@ -1,22 +1,12 @@
-name: Windows-RDP-Ngrok
+name: CI
 
-on: 
-  workflow_dispatch:  # 删除 push 触发器，只保留 workflow_dispatch
-    inputs:
-      password:
-        description: '设置远程桌面密码'
-        required: false
-        default: 'P@ssw0rd!'
-      timeout:
-        description: '运行时间(分钟)'
-        required: true
-        default: '360'
+on: [push, workflow_dispatch]
 
 jobs:
   build:
+
     runs-on: windows-latest
-    timeout-minutes: ${{ fromJson(github.event.inputs.timeout) }}
-    
+
     steps:
     - name: Download
       run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
@@ -32,4 +22,4 @@ jobs:
     - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
     - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
     - name: Create Tunnel
-      run: .\ngrok\ngrok.exe tcp 3389 
+      run: .\ngrok\ngrok.exe tcp 3389

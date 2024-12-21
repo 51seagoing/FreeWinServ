@@ -6,17 +6,20 @@ on:
       os_type:
         description: |
           选择 Ubuntu 版本:
+          - Latest: 最新版本 (推荐)
+          - 22.04: 长期支持版
+          - 20.04: 稳定版本
         required: true
         type: choice
         options:
-          - 'Ubuntu Latest (推荐)'
-          - 'Ubuntu 22.04 LTS'
-          - 'Ubuntu 20.04 LTS'
-        default: 'Ubuntu Latest (推荐)'
+          - 'ubuntu-latest'
+          - 'ubuntu-22.04'
+          - 'ubuntu-20.04'
+        default: 'ubuntu-latest'
       desktop:
         description: |
           选择桌面环境:
-          - xfce: 轻量快速
+          - xfce: 轻量快速 (推荐)
           - mate: 完整体验
           - lxde: 超轻量级
         required: true
@@ -29,13 +32,16 @@ on:
       browser:
         description: |
           选择浏览器:
+          - firefox: 开源浏览器 (推荐)
+          - chrome: 谷歌浏览器
+          - chromium: 开源Chrome
         required: true
         type: choice
         options:
-          - 'Firefox (推荐)'
-          - 'Chrome'
-          - 'Chromium'
-        default: 'Firefox (推荐)'
+          - 'firefox'
+          - 'chrome'
+          - 'chromium'
+        default: 'firefox'
       password:
         description: '远程桌面密码 (默认: P@ssw0rd!)'
         required: false
@@ -44,75 +50,137 @@ on:
       timeout:
         description: '运行时间 (60-360分钟，默认360)'
         required: true
-        type: string
-        default: '360'
+        type: number
+        minimum: 60
+        maximum: 360
+        default: 360
+
+# 权限配置
+permissions:
+  contents: read
+
+# 并发控制
+concurrency:
+  group: rdp-${{ github.ref }}-${{ github.actor }}
+  cancel-in-progress: true
 
 jobs:
-  rdp:
-    runs-on: ${{ 
-      inputs.os_type == 'Ubuntu Latest (推荐)' && 'ubuntu-latest' ||
-      inputs.os_type == 'Ubuntu 22.04 LTS' && 'ubuntu-22.04' ||
-      inputs.os_type == 'Ubuntu 20.04 LTS' && 'ubuntu-20.04'
-    }}
-    timeout-minutes: ${{ fromJson(inputs.timeout) }}
+  # 输入验证
+  validate:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: 验证输入
+        run: |
+          # 验证超时时间
+          if [ ${{ inputs.timeout }} -lt 60 ] || [ ${{ inputs.timeout }} -gt 360 ]; then
+            echo "错误：超时时间必须在 60-360 分钟之间"
+            exit 1
+          fi
+          
+          # 验证密码长度
+          if [ ${#PASSWORD} -lt 8 ]; then
+            echo "错误：密码长度必须大于 8 位"
+            exit 1
+          fi
+        env:
+          PASSWORD: ${{ inputs.password }}
+  
+  # 主任务
+  rdp:
+    needs: validate
+    runs-on: ${{ inputs.os_type }}
+    timeout-minutes: ${{ inputs.timeout }}
+    
+    steps:
+      - uses: actions/checkout@v4
       
-      # 安装桌面环境和 XRDP
+      - name: 系统信息
+        shell: bash
+        run: |
+          echo "==== 系统信息 ===="
+          echo "发行版本: $(lsb_release -d)"
+          echo "内核版本: $(uname -r)"
+          echo "CPU 信息: $(lscpu | grep 'Model name' | cut -f 2 -d ":")"
+          echo "内存信息: $(free -h | grep Mem | awk '{print $2}')"
+          echo "当前时间: $(date)"
+      
       - name: 配置桌面环境
         shell: bash
         run: |
           # 更新系统
           sudo apt-get update
+          sudo apt-get upgrade -y
+          
+          # 安装通用工具
+          sudo apt-get install -y wget curl git nano net-tools
           
           # 安装桌面环境
+          echo "正在安装 ${{ inputs.desktop }} 桌面环境..."
           case "${{ inputs.desktop }}" in
             "xfce")
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies
+              echo xfce4-session > ~/.xsession
               ;;
             "mate")
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mate-desktop-environment-core
+              echo mate-session > ~/.xsession
               ;;
             "lxde")
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lxde-core
+              echo lxde-session > ~/.xsession
               ;;
           esac
           
-          # 安装选择的浏览器
+          # 安装浏览器
+          echo "正在安装 ${{ inputs.browser }} 浏览器..."
           case "${{ inputs.browser }}" in
-            "Firefox (推荐)")
+            "firefox")
               sudo apt-get install -y firefox
               ;;
-            "Chrome")
-              wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            "chrome")
+              wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
               sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f -y
               ;;
-            "Chromium")
+            "chromium")
               sudo apt-get install -y chromium-browser
               ;;
           esac
-          
+      
+      - name: 配置远程桌面
+        shell: bash
+        run: |
           # 安装 XRDP
           sudo apt-get install -y xrdp
           
-          # 配置 XRDP
+          # 备份配置
           sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini.bak
+          
+          # 优化 XRDP 配置
           sudo sed -i 's/3389/3390/g' /etc/xrdp/xrdp.ini
           sudo sed -i 's/max_bpp=32/max_bpp=128/g' /etc/xrdp/xrdp.ini
           sudo sed -i 's/xserverbpp=24/xserverbpp=30/g' /etc/xrdp/xrdp.ini
-          echo xfce4-session > ~/.xsession
           
-          # 设置用户
+          # 配置用户
           sudo useradd -m -s /bin/bash runner || true
           echo "runner:${{ inputs.password }}" | sudo chpasswd
           sudo usermod -aG sudo runner
           
+          # 设置权限
+          sudo chown -R runner:runner /home/runner
+          
           # 启动服务
           sudo systemctl enable xrdp
           sudo systemctl restart xrdp
+          
+          # 检查服务状态
+          echo "==== XRDP 服务状态 ===="
+          sudo systemctl status xrdp --no-pager
+          
+          # 检查端口
+          echo "==== 端口状态 ===="
+          sudo netstat -tuln | grep 3390
       
-      # 配置 Cloudflared 隧道
-      - name: 配置隧道
+      - name: 配置 Cloudflared 隧道
         shell: bash
         run: |
           # 下载和安装 Cloudflared
@@ -121,19 +189,18 @@ jobs:
           
           echo "==== 启动 Cloudflare 隧道 ===="
           echo "时间: $(date)"
-          echo "提示：请确保 Cloudflare 隧道配置中的端口为 3390"
           
           if [ -z "$TUNNEL_TOKEN" ]; then
             echo "错误：未设置隧道令牌!"
             exit 1
           fi
           
-          # 测试端口
+          # 测试 XRDP 端口
           echo "测试 XRDP 端口..."
           nc -zv localhost 3390 || true
           
           # 启动隧道
-          echo "正在启动隧道，请在 Cloudflare 控制台确认端口配置正确"
+          echo "正在启动隧道..."
           cloudflared tunnel run --token "$TUNNEL_TOKEN"
         env:
           TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
