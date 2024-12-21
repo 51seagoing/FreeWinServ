@@ -8,38 +8,83 @@ on:
           选择远程桌面类型:
           1 = Windows + Cloudflared (国外推荐)
           2 = Windows + Ngrok (国内推荐)
-          3 = Linux 远程桌面
+          3 = Linux + XFCE (轻量桌面)
+          4 = Linux + MATE (传统桌面)
+          5 = Linux + LXDE (超轻量桌面)
         required: true
         default: '1'
         type: choice
+        options: ['1', '2', '3', '4', '5']
+      os_type:
+        description: |
+          Linux系统类型 (仅Linux选项3/4/5有效):
+          1 = Ubuntu (推荐)
+          2 = Debian
+          3 = Fedora
+          4 = CentOS
+        required: false
+        default: '1'
+        type: choice
+        options: ['1', '2', '3', '4']
+      browser:
+        description: |
+          浏览器选择 (仅Linux选项有效):
+          1 = Firefox (推荐)
+          2 = Chrome
+          3 = Chromium
+        required: false
+        default: '1'
+        type: choice
         options: ['1', '2', '3']
+      password:
+        description: '设置远程桌面密码'
+        required: false
+        default: 'P@ssw0rd!'
+      timeout:
+        description: '运行时间(分钟, 范围60-360)'
+        required: true
+        default: '360'
+        type: number
 
 jobs:
   entry:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Route to Workflow
-        id: router
+      - uses: actions/checkout@v2
+      
+      - name: Set Environment
+        id: set-env
         run: |
+          # 转换RDP类型
           case "${{ github.event.inputs.type }}" in
-            "1")
-              echo "::set-output name=workflow::.github/workflows/windows/cloudflared.yml"
-              echo "选择了 Windows + Cloudflared 方案"
+            "1") 
+              WORKFLOW="cloudflared.yml"
               ;;
-            "2")
-              echo "::set-output name=workflow::.github/workflows/windows/ngrok.yml"
-              echo "选择了 Windows + Ngrok 方案"
+            "2") 
+              WORKFLOW="ngrok.yml"
               ;;
-            "3")
-              echo "::set-output name=workflow::.github/workflows/linux/selector.yml"
-              echo "选择了 Linux 远程桌面方案"
+            "3"|"4"|"5") 
+              WORKFLOW="linux-rdp.yml"
+              case "${{ github.event.inputs.type }}" in
+                "3") DESKTOP_ENV="xfce" ;;
+                "4") DESKTOP_ENV="mate" ;;
+                "5") DESKTOP_ENV="lxde" ;;
+              esac
               ;;
           esac
+          
+          echo "::set-output name=workflow::$WORKFLOW"
+          echo "::set-output name=desktop_env::$DESKTOP_ENV"
 
-      - name: Trigger Workflow
+      - name: Trigger Selected Workflow
         uses: benc-uk/workflow-dispatch@v1
         with:
-          workflow: ${{ steps.router.outputs.workflow }} 
+          workflow: ${{ steps.set-env.outputs.workflow }}
+          inputs: |
+            {
+              "os_type": "${{ github.event.inputs.os_type }}",
+              "desktop_env": "${{ steps.set-env.outputs.desktop_env }}",
+              "browser": "${{ github.event.inputs.browser }}",
+              "password": "${{ github.event.inputs.password }}",
+              "timeout": "${{ github.event.inputs.timeout }}"
+            }
