@@ -72,29 +72,47 @@ jobs:
           # 配置转换
           case "${{ github.event.inputs.type }}" in
             "win-cf") 
-              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"cloudflared\"}"
+              echo "::set-output name=config::{
+                \"type\":\"windows\",
+                \"tunnel\":\"cloudflared\",
+                \"timeout\":\"${{ github.event.inputs.timeout }}\"
+              }"
               echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
               ;;
             "win-ng") 
-              echo "::set-output name=config::{\"type\":\"windows\",\"tunnel\":\"ngrok\"}"
+              echo "::set-output name=config::{
+                \"type\":\"windows\",
+                \"tunnel\":\"ngrok\",
+                \"timeout\":\"${{ github.event.inputs.timeout }}\"
+              }"
               echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
               ;;
             "linux-xfce"|"linux-mate"|"linux-lxde")
               desktop="${{ github.event.inputs.type }}"
               desktop=${desktop#linux-}  # 移除 'linux-' 前缀
+              
+              # 处理 OS 类型
+              os_version=""
+              case "${{ github.event.inputs.os_type }}" in
+                "Ubuntu Latest (推荐)") os_version="ubuntu-latest" ;;
+                "Ubuntu 22.04 LTS") os_version="ubuntu-22.04" ;;
+                "Ubuntu 20.04 LTS") os_version="ubuntu-20.04" ;;
+              esac
+              
+              # 处理浏览器类型
+              browser=""
+              case "${{ github.event.inputs.browser }}" in
+                "Firefox (推荐)") browser="firefox" ;;
+                "Chrome") browser="chrome" ;;
+                "Chromium") browser="chromium" ;;
+              esac
+              
               echo "::set-output name=config::{
                 \"type\":\"linux\",
                 \"desktop\":\"${desktop}\",
-                \"os\":\"${{ 
-                  github.event.inputs.os_type == 'ubuntu-latest' && 'ubuntu-latest' || 
-                  github.event.inputs.os_type == 'ubuntu-22.04' && 'ubuntu-22.04' || 
-                  'ubuntu-20.04' 
-                }}\",
-                \"browser\":\"${{ 
-                  github.event.inputs.browser == 'firefox' && 'firefox' || 
-                  github.event.inputs.browser == 'chrome' && 'chrome' || 
-                  'chromium' 
-                }}\"
+                \"os\":\"${os_version}\",
+                \"browser\":\"${browser}\",
+                \"timeout\":\"${{ github.event.inputs.timeout }}\"
               }"
               echo "选择了: ${display_names[${{ github.event.inputs.type }}]}"
               ;;
